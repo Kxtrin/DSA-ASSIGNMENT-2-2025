@@ -1,0 +1,11 @@
+[package]
+org = "raldo"
+name = "notification_service"
+version = "0.1.0"
+distribution = "2201.9.0"
+
+[build-options]
+observabilityIncluded = true
+
+[[platform.java17.dependency]]
+path = "./lib/mysql-connector-j-8.0.33.jar"
