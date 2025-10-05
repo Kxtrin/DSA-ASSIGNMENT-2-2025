@@ -28,6 +28,7 @@ function hashPassword(string password) returns string|error {
 // User record type
 type User record {|
     int user_id;
+string user_type;
     string first_name;
     string last_name;
     string email;
@@ -101,7 +102,7 @@ service /passenger on new http:Listener(8080) {
         string hashedPassword = check hashPassword(password);
 
         stream<User, error?> userStream = db->query(
-            `SELECT user_id, first_name, last_name, email 
+            `SELECT user_id,user_type,first_name, last_name, email 
              FROM users
              WHERE email = ${email} AND password_hash = ${hashedPassword} AND is_active = TRUE`
         );
