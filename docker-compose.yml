@@ -1,0 +1,229 @@
+services:
+  # ========================================
+  # MySQL Database
+  # ========================================
+  mysql:
+    image: mysql:8.0
+    container_name: dsa_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: dsa_users
+    ports:
+      - "3308:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - dsa_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # ========================================
+  # Zookeeper (Kafka dependency)
+  # ========================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: dsa_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - dsa_network
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Kafka Broker
+  # ========================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: dsa_kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - dsa_network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ========================================
+  # Passenger Service
+  # ========================================
+  passenger-service:
+    build:
+      context: ./services/passenger-service
+      dockerfile: Dockerfile
+    container_name: dsa_passenger_service
+    ports:
+      - "8080:8080"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_users
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+  # ========================================
+  # Transport Service
+  # ========================================
+  transport-service:
+    build:
+      context: ./services/transport-service
+      dockerfile: Dockerfile
+    container_name: dsa_transport_service
+    ports:
+      - "8081:8081"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_routes
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+  # ========================================
+  # Ticketing Service
+  # ========================================
+  ticketing-service:
+    build:
+      context: ./services/ticketing-service
+      dockerfile: Dockerfile
+    container_name: dsa_ticketing_service
+    ports:
+      - "8082:8082"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_tickets
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+  # ========================================
+  # Payment Service
+  # ========================================
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: dsa_payment_service
+    ports:
+      - "8083:8083"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_payments
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+  # ========================================
+  # Notification Service
+  # ========================================
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: dsa_notification_service
+    ports:
+      - "8084:8084"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_notifications
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+  # ========================================
+  # Admin Service
+  # ========================================
+  admin-service:
+    build:
+      context: ./services/admin-service
+      dockerfile: Dockerfile
+    container_name: dsa_admin_service
+    ports:
+      - "8085:8085"
+    environment:
+      - dbHost=mysql
+      - dbPort=3306
+      - dbUser=root
+      - dbPassword=root123
+      - dbName=dsa_users
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - dsa_network
+    restart: on-failure
+
+networks:
+  dsa_network:
+    driver: bridge
